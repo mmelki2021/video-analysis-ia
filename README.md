@@ -12,3 +12,36 @@
 4. Statistiques complètes
 5. Visualisation + export
 6. Optimisation GPU et temps réel
+
+## Build du projet
+
+### Prérequis
+- CMake ≥ 3.10
+- Compilateur C++ (g++/clang++) compatible C++17
+- OpenCV (paquet `libopencv-dev` sous Ubuntu/Debian)
+
+Installation typique sous Ubuntu :
+
+```bash
+sudo apt update
+sudo apt install -y build-essential cmake pkg-config libopencv-dev
+```
+
+### Génération et compilation avec CMake
+
+Depuis la racine du projet :
+
+```bash
+cmake -S . -B build
+cmake --build build
+```
+
+L’exécutable principal sera généré dans le dossier `build` sous le nom `video_analysis`.
+
+### Exécution
+
+Depuis la racine du projet :
+
+```bash
+./build/video_analysis
+```
