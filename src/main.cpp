@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    Detector detector("models/yolov8.onnx");
+    Detector detector("models/yolov8n.onnx");
     Tracker tracker;
     Analyzer analyzer;
     Visualizer visualizer;
