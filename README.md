@@ -19,6 +19,7 @@
 - CMake ≥ 3.10
 - Compilateur C++ (g++/clang++) compatible C++17
 - OpenCV (paquet `libopencv-dev` sous Ubuntu/Debian)
+- **Recommandé** : ONNX Runtime pour l’inférence YOLOv8 (évite un bug OpenCV 4.6 avec certains modèles ONNX)
 
 Installation typique sous Ubuntu :
 
@@ -27,9 +28,22 @@ sudo apt update
 sudo apt install -y build-essential cmake pkg-config libopencv-dev
 ```
 
+Pour utiliser **ONNX Runtime** (recommandé si vous avez une erreur `shape_utils.hpp` au chargement du modèle) :
+
+1. Téléchargez le package Linux depuis [Releases ONNX Runtime](https://github.com/microsoft/onnxruntime/releases) (ex. `onnxruntime-linux-x64-1.16.3.tgz`).
+2. Extrayez-le dans un répertoire (ex. `$HOME/onnxruntime`).
+3. Configurez avec CMake en indiquant ce répertoire :
+
+```bash
+cmake -S . -B build -DONNXRUNTIME_ROOT=$HOME/onnxruntime
+cmake --build build
+```
+
+Sans `ONNXRUNTIME_ROOT`, le projet utilise OpenCV DNN pour l’inférence (peut échouer avec OpenCV 4.6 sur YOLOv8 ; mettre à jour OpenCV ou utiliser ONNX Runtime dans ce cas).
+
 ### Génération et compilation avec CMake
 
-Depuis la racine du projet :
+Depuis la racine du projet (sans ONNX Runtime) :
 
 ```bash
 cmake -S . -B build
