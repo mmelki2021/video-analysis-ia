@@ -7,13 +7,16 @@
 
 ## Stack technique
 - **Langage** : C++17
-- **Framework vision** : OpenCV (core + `dnn` + `highgui`)
-- **Modèle de détection** : YOLOv8 (format ONNX, fichier `models/yolov8.onnx`)
-- **Build** : CMake, exécutable principal `video_analysis`
+- **Framework vision** : OpenCV (core, `highgui`, et optionnellement `dnn`)
+- **Modèle de détection** : YOLOv8 (format ONNX), fichier par défaut `models/yolov8n.onnx`
+- **Inférence** : deux backends au choix (défini à la compilation) :
+  - **ONNX Runtime** (recommandé) : activé si `ONNXRUNTIME_ROOT` est fourni à CMake ; évite un bug OpenCV 4.6 sur certaines sorties ONNX
+  - **OpenCV DNN** : utilisé par défaut si ONNX Runtime n’est pas fourni
+- **Build** : CMake, exécutable `video_analysis` ; option `-DONNXRUNTIME_ROOT=/chemin/vers/onnxruntime` pour lier ONNX Runtime
 - **OS cible** : Linux (Ubuntu)
 
 ## Architecture logique
-- **`Detector`** : charge le modèle ONNX YOLOv8 via OpenCV DNN, retourne une liste de `Detection` (bbox, classe, confiance).
+- **`Detector`** : charge le modèle ONNX YOLOv8 via **ONNX Runtime** (si compilé avec) ou **OpenCV DNN** ; retourne une liste de `Detection` (bbox, classe, confiance). Le chemin du modèle est résolu par rapport au répertoire de travail ou à l’exécutable (`resolveModelPath` dans `main`).
 - **`Tracker`** : associe des ID persistants aux personnes (`TrackedObject`) entre les frames (MOT).
 - **`Analyzer`** : calcule les distances et vitesses à partir des trajectoires (positions successives des ID).
 - **`Visualizer`** : dessine bounding boxes, IDs, stats sur les frames vidéo.
@@ -34,11 +37,13 @@ Sorties :
   - Leur attribuer un ID unique simple et suivre ces IDs d’une frame à l’autre.
   - Calculer une distance « brute » en **pixels** parcourus par ID.
 - **Technique**
-  - **`Detector`** :
-    - Utiliser YOLOv8 ONNX + OpenCV DNN (`cv::dnn::readNetFromONNX`).
-    - Prétraitement : `blobFromImage` (normalisation 1/255, `Size(640, 640)`).
-    - Post-traitement : parsing des sorties YOLO (cx, cy, w, h, conf, scores classes) + `NMSBoxes`.
-    - Filtrer sur la classe « personne » (si labels disponibles) et `confThreshold`.
+  - **`Detector`** (état actuel) :
+    - **Backend ONNX Runtime** (si `ONNXRUNTIME_ROOT` défini) : `Ort::Session` sur le fichier ONNX ; entrée NCHW (1, 3, 640, 640) ; sortie (1, 84, 8400) parsée (cx, cy, w, h + 80 scores de classe), puis NMS via OpenCV.
+    - **Backend OpenCV DNN** (sinon) : `cv::dnn::readNetFromONNX` ; même prétraitement et post-traitement (sous OpenCV 4.6, un bug peut survenir sur certains modèles → privilégier ONNX Runtime).
+    - Prétraitement commun : `blobFromImage` (normalisation 1/255, `Size(640, 640)`).
+    - Post-traitement : format YOLOv8 (pas d’objectness séparé ; confiance = max des scores de classe), scaling des bbox à la taille de la frame, `NMSBoxes`.
+    - Chemin du modèle : résolution via `resolveModelPath` (répertoire courant puis répertoire de l’exécutable).
+    - Seuils : `confThreshold`, `nmsThreshold` (ex. 0.4, 0.45).
   - **`Tracker`** (version simple) :
     - Matching frame(t) ↔ frame(t-1) avec une logique naïve (ex. distance IoU max, ou distance euclidienne du centre).
     - Si aucune correspondance satisfaisante, créer un **nouvel ID**.
@@ -133,18 +138,25 @@ Sorties :
   - Traiter les vidéos en temps réel ou proche temps réel (≥ 20–30 fps) selon la résolution.
 - **Technique**
   - Optimisations possibles :
-    - Utiliser un backend/target optimisé pour `cv::dnn::Net` :
-      - `DNN_BACKEND_OPENCV` + `DNN_TARGET_CPU` (baseline).
-      - Si GPU : `DNN_BACKEND_CUDA` + `DNN_TARGET_CUDA` (si OpenCV CUDA compilé).
+    - **Détection** : avec backend OpenCV DNN, utiliser `DNN_BACKEND_OPENCV` + `DNN_TARGET_CPU` (baseline) ou `DNN_TARGET_CUDA` si disponible ; avec backend ONNX Runtime, utiliser le provider CUDA d’ONNX Runtime si besoin.
     - Réduire la résolution d’entrée si nécessaire (downscale avant le blob).
     - Ajuster fréquence de détection (ex. détecter 1 frame sur 2/3 et suivre entre-temps).
   - Profiling :
-    - Mesurer temps moyenne par frame (détection + tracking + visualisation).
+    - Mesurer temps moyen par frame (détection + tracking + visualisation).
     - Ajuster seuils et taille d’entrée YOLO pour respecter le budget temps.
 - **Contraintes**
   - Rester compatible CPU-only par défaut.
   - Ne pas complexifier excessivement l’API publique (les optimisations restent internes aux classes).
+  - Le choix du backend (ONNX Runtime vs OpenCV DNN) reste une option de build (CMake), pas un runtime.
 
 ---
+
+## État actuel (aligné avec le code)
+
+- **Détection** : YOLOv8 ONNX (fichier `models/yolov8n.onnx`) avec double backend (ONNX Runtime recommandé, OpenCV DNN en secours) ; résolution du chemin du modèle par rapport au CWD ou à l’exécutable.
+- **Suivi** : attribution d’un nouvel ID à chaque détection (pas de MOT entre frames).
+- **Analyse** : distance cumulée et vitesse instantanée en pixels par ID (peu significatif tant que les ID ne sont pas stables).
+- **Visualisation** : bbox et ID affichés par frame.
+- **Export** : CSV et JSON avec `id`, `distance`, `speed` en fin de vidéo.
 
 Ces spécifications servent de guide pour faire évoluer progressivement le projet tout en gardant une architecture claire et modulaire (`Detector`, `Tracker`, `Analyzer`, `Visualizer`, `Exporter`).
