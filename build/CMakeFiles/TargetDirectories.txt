@@ -1,0 +1,3 @@
+/home/lap001855/Documents/programming-ai/video-analysis-ia/build/CMakeFiles/video_analysis.dir
+/home/lap001855/Documents/programming-ai/video-analysis-ia/build/CMakeFiles/edit_cache.dir
+/home/lap001855/Documents/programming-ai/video-analysis-ia/build/CMakeFiles/rebuild_cache.dir
